@@ -298,6 +298,8 @@ public:
     std::vector<IndexedData> find_generic_with_string(std::wstring equation_name, int page_number);
     // Find bibliography target using an author–year citation text (e.g. "Lo and MacKinlay (1990)")
     std::vector<IndexedData> find_author_year_with_string(std::wstring citation_text);
+    // Get rectangles of all author–year style citations on a page
+    std::vector<DocumentRect> get_author_year_reference_rects(int page);
 
     std::optional<std::wstring> get_text_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position);
     std::optional<std::wstring> get_reference_text_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);

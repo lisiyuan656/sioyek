@@ -4435,18 +4435,13 @@ void MainWidget::highlight_words() {
     std::vector<DocumentRect> word_rects_with_page;
     std::vector<DocumentRect> visible_word_rects;
 
-    get_flat_chars_from_stext_page(stext_page, flat_chars);
-    get_flat_words_from_flat_chars(flat_chars, word_rects);
-    for (auto rect : word_rects) {
-        word_rects_with_page.push_back(DocumentRect(rect, page));
-    }
-
-    for (auto [rect, page] : word_rects_with_page) {
-        if (is_rect_visible(DocumentRect(rect, page))) {
-            visible_word_rects.push_back(DocumentRect(rect, page));
+    // Highlight author–year citations on current page
+    std::vector<DocumentRect> cite_rects = main_document_view->get_document()->get_author_year_reference_rects(page);
+    for (auto& dr : cite_rects) {
+        if (is_rect_visible(dr)) {
+            visible_word_rects.push_back(dr);
         }
     }
-
     opengl_widget->set_highlight_words(visible_word_rects);
     opengl_widget->set_should_highlight_words(true);
     invalidate_render();

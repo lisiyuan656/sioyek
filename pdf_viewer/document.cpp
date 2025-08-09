@@ -2694,6 +2694,53 @@ std::optional<std::wstring> Document::get_author_year_citation_at_position(Docum
     return get_author_year_citation_at_position(flat_chars, position.pageless(), out_range);
 }
 
+std::vector<DocumentRect> Document::get_author_year_reference_rects(int page) {
+    std::vector<DocumentRect> rects_with_page;
+    fz_stext_page* stext_page = get_stext_with_page_number(page);
+    if (!stext_page) return rects_with_page;
+    std::vector<fz_stext_char*> flat_chars;
+    get_flat_chars_from_stext_page(stext_page, flat_chars);
+
+    // Use same patterns as single-point detection
+    const std::vector<std::wregex> patterns = {
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+(( (and|&) [A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+)| et al\\.)?\\s*\\((19|20)\\d{2}[a-z]?\\)\\)?"),
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+\\s*\\((19|20)\\d{2}[a-z]?\\)\\)?"),
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+(( (and|&) [A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+)| et al\\.)?,\\s*(19|20)\\d{2}[a-z]?\\)?")
+    };
+
+    // Build unified page text and map back to char indices
+    std::wstring page_string;
+    std::vector<int> indices;
+    get_text_from_flat_chars(flat_chars, page_string, indices);
+
+    for (const auto& regex : patterns) {
+        std::wsmatch match;
+        std::wstring hay = page_string;
+        int offset = 0;
+        while (std::regex_search(hay, match, regex)) {
+            int start_index = offset + match.position();
+            int end_index = start_index + match.length() - 1;
+            if (start_index >= 0 && end_index >= start_index && end_index < (int)indices.size()) {
+                int s = indices[start_index];
+                int e = indices[end_index];
+                if (s >= 0 && e >= s && e < (int)flat_chars.size()) {
+                    fz_rect rect = rect_from_quad(flat_chars[s]->quad);
+                    for (int i = s + 1; i <= e; ++i) {
+                        rect = fz_union_rect(rect, rect_from_quad(flat_chars[i]->quad));
+                    }
+                    rects_with_page.push_back(DocumentRect(rect, page));
+                }
+            }
+            int old_len = hay.size();
+            hay = match.suffix();
+            int new_len = hay.size();
+            offset += (old_len - new_len);
+        }
+    }
+
+    return rects_with_page;
+}
+
 std::vector<std::vector<PagelessDocumentRect>> Document::get_page_flat_word_chars(int page) {
     // warning: this function should only be called after get_page_flat_words has already cached the chars
     if (cached_flat_word_chars.find(page) != cached_flat_word_chars.end()) {

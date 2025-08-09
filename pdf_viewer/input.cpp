@@ -4232,10 +4232,12 @@ public:
 class ToggleHighlightCommand : public Command {
 public:
     static inline const std::string cname = "toggle_highlight";
-    static inline const std::string hname = "Toggle whether PDF links are highlighted";
+    static inline const std::string hname = "Toggle whether PDF links are highlighted and show author–year citations";
     ToggleHighlightCommand(MainWidget* w) : Command(cname, w) {};
     void perform() {
         widget->toggle_highlight_links();
+        // Also show author–year reference highlights on current page
+        widget->highlight_words();
     }
 
     bool requires_document() { return false; }
