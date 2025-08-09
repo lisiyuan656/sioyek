@@ -140,6 +140,14 @@ private:
     std::map<std::wstring, IndexedData> reference_indices;
     std::map<std::wstring, std::vector<IndexedData>> equation_indices;
 
+    // Author–year bibliography index grouped by year. Each entry stores the
+    // list of author last names parsed from bibliography and the location.
+    struct AuthorYearIndexEntry {
+        std::vector<std::wstring> author_last_names;
+        IndexedData data;
+    };
+    std::unordered_map<std::wstring, std::vector<AuthorYearIndexEntry>> author_year_index;
+
     std::mutex document_indexing_mutex;
     std::optional<std::thread> document_indexing_thread = {};
     bool is_document_indexing_required = true;
@@ -288,6 +296,8 @@ public:
     std::vector<IndexedData> find_reference_with_string(std::wstring reference_name, int page_number);
     std::vector<IndexedData> find_equation_with_string(std::wstring equation_name, int page_number);
     std::vector<IndexedData> find_generic_with_string(std::wstring equation_name, int page_number);
+    // Find bibliography target using an author–year citation text (e.g. "Lo and MacKinlay (1990)")
+    std::vector<IndexedData> find_author_year_with_string(std::wstring citation_text);
 
     std::optional<std::wstring> get_text_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position);
     std::optional<std::wstring> get_reference_text_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);
@@ -295,12 +305,17 @@ public:
     std::optional<std::wstring> get_equation_text_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::pair<std::wstring, std::wstring>> get_generic_link_name_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::wstring> get_regex_match_at_position(const std::wregex& regex, const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);
+    // Extract author–year citation under cursor. Returns the matched citation text
+    // e.g. "Lo and MacKinlay (1990)" or "Lo et al., 1990". Caller can pass this
+    // to find_author_year_with_string.
+    std::optional<std::wstring> get_author_year_citation_at_position(const std::vector<fz_stext_char*>& flat_chars, PagelessDocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::wstring> get_text_at_position(DocumentPos position);
     std::optional<std::wstring> get_reference_text_at_position(DocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::wstring> get_paper_name_at_position(DocumentPos position);
     std::optional<std::wstring> get_equation_text_at_position(DocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::pair<std::wstring, std::wstring>> get_generic_link_name_at_position(DocumentPos position, std::pair<int, int>* out_range);
     std::optional<std::wstring> get_regex_match_at_position(const std::wregex& regex, DocumentPos position, std::pair<int, int>* out_range);
+    std::optional<std::wstring> get_author_year_citation_at_position(DocumentPos position, std::pair<int, int>* out_range);
     std::vector<DocumentPos> find_generic_locations(const std::wstring& type, const std::wstring& name);
     bool can_use_highlights();
 

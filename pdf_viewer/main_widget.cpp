@@ -1,4 +1,4 @@
-﻿// deduplicate database code
+// deduplicate database code
 // make sure jsons exported by previous sioyek versions can be imported
 // maybe: use a better method to handle deletion of canceled download portals
 // change find_closest_*_index and argminf to use the fact that the list is sorted and speed up the search (not important if there are not a ridiculous amount of highlight/bookmarks)
@@ -2860,6 +2860,7 @@ TextUnderPointerInfo MainWidget::find_location_of_text_under_pointer(DocumentPos
         main_document_view->get_document()->get_generic_link_name_at_position(flat_chars, docpos.pageless(), &reference_range);
 
     std::optional<std::wstring> reference_text_on_pointer = main_document_view->get_document()->get_reference_text_at_position(flat_chars, docpos.pageless(), &reference_range);
+    std::optional<std::wstring> author_year_text_on_pointer = main_document_view->get_document()->get_author_year_citation_at_position(flat_chars, docpos.pageless(), &reference_range);
     std::optional<std::wstring> equation_text_on_pointer = main_document_view->get_document()->get_equation_text_at_position(flat_chars, docpos.pageless(), &reference_range);
 
     DocumentRect source_rect_document = DocumentRect{ fz_empty_rect, docpos.page };
@@ -2914,6 +2915,19 @@ TextUnderPointerInfo MainWidget::find_location_of_text_under_pointer(DocumentPos
             //res.page = refdata.page;
             //res.offset = refdata.y_offset;
             res.reference_type = ReferenceType::Equation;
+            return res;
+        }
+    }
+
+    // Author–year citation like "Lo and MacKinlay (1990)"
+    if (author_year_text_on_pointer) {
+        std::vector<IndexedData> ay = main_document_view->get_document()->find_author_year_with_string(author_year_text_on_pointer.value());
+        if (!ay.empty()) {
+            res.reference_type = ReferenceType::Reference;
+            res.source_text = author_year_text_on_pointer.value();
+            for (const auto &idx : ay) {
+                res.targets.push_back(DocumentPos{idx.page, 0, idx.y_offset});
+            }
             return res;
         }
     }

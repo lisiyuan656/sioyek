@@ -1444,6 +1444,7 @@ void Document::index_document(bool* invalid_flag) {
         reference_indices = std::move(local_reference_data);
         equation_indices = std::move(local_equation_data);
         generic_indices = std::move(local_generic_data);
+        // Note: author_year_index is filled lazily from bibliography pages as needed
 
         super_fast_search_index = std::move(local_super_fast_search_index);
         super_fast_page_begin_indices = std::move(local_page_begin_indices);
@@ -1529,6 +1530,173 @@ std::vector<IndexedData> Document::find_generic_with_string(std::wstring equatio
 }
 
 
+// Heuristic: parse author last names and year from a bibliography item text.
+// Returns pair of (authors_lastnames, year) if recognizable.
+static std::optional<std::pair<std::vector<std::wstring>, std::wstring>> parse_bib_authors_and_year(std::wstring bib_text) {
+    // Normalize spaces
+    bib_text = QString::fromStdWString(bib_text).simplified().toStdWString();
+    // Find year first (4 digits possibly followed by a letter)
+    std::wregex year_regex(L"(19|20)\\d{2}[a-z]?");
+    std::wsmatch m;
+    std::wstring year;
+    if (std::regex_search(bib_text, m, year_regex)) {
+        year = m.str();
+    } else {
+        return {};
+    }
+
+    // Extract the segment before year as authors/title prefix
+    size_t year_pos = bib_text.find(year);
+    std::wstring prefix = bib_text.substr(0, year_pos);
+    // Authors are usually before the first title sentence. Split on '.' or '–' or '—' or '“'
+    // Keep it simple: take up to first comma after first period block if present
+    // We will extract capitalized tokens as last names.
+
+    // Replace '&' with 'and'
+    for (size_t i = 0; i < prefix.size(); ++i) {
+        if (prefix[i] == L'&') prefix[i] = L' ';
+    }
+
+    // Tokenize by spaces and commas
+    std::vector<std::wstring> tokens = split_whitespace(prefix);
+    std::vector<std::wstring> lastnames;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        std::wstring t = tokens[i];
+        // Remove trailing commas
+        if (!t.empty() && (t.back() == L',' || t.back() == L'.')) t.pop_back();
+        if (t == L"and" || t == L"et" || t == L"al" || t == L"al." || t == L"and," || t == L"et,") continue;
+        // Skip initials like "A." or "A"
+        if (t.size() <= 2 && (t.size() == 1 || (t.size() == 2 && t[1] == L'.'))) continue;
+        // Heuristic: consider as last name if it starts with uppercase and has letters
+        if (!t.empty() && QChar(t[0]).isUpper()) {
+            lastnames.push_back(t);
+        }
+        // Stop at the title quote
+        if (t.find(L"“") != std::wstring::npos || t.find(L"\"") != std::wstring::npos) break;
+    }
+    if (lastnames.empty()) return {};
+    return std::make_pair(lastnames, year);
+}
+
+// Build author_year_index lazily from detected bibliography pages if empty; then try matching.
+std::vector<IndexedData> Document::find_author_year_with_string(std::wstring citation_text) {
+    std::vector<IndexedData> results;
+    // Extract authors and year from citation text (author–year citation near cursor)
+    // Accept forms: "Lo and MacKinlay (1990)", "Lo et al., 1990", "Lo (1990)"
+    citation_text = QString::fromStdWString(citation_text).simplified().toStdWString();
+
+    // Extract year
+    std::wregex year_regex(L"(19|20)\\d{2}[a-z]?");
+    std::wsmatch m;
+    std::wstring year;
+    if (std::regex_search(citation_text, m, year_regex)) {
+        year = m.str();
+    } else {
+        return results;
+    }
+
+    // Extract candidate last names from the segment before year
+    size_t year_pos = citation_text.find(year);
+    std::wstring prefix = citation_text.substr(0, year_pos);
+    // Remove surrounding parentheses/commas
+    if (!prefix.empty() && prefix.front() == L'(') prefix = prefix.substr(1);
+    if (!prefix.empty() && prefix.back() == L',') prefix.pop_back();
+    if (!prefix.empty() && prefix.back() == L')') prefix.pop_back();
+    prefix = QString::fromStdWString(prefix).remove('(').remove(')').toStdWString();
+    // Normalize connectors
+    prefix = QString::fromStdWString(prefix).replace("&", " and ").toStdWString();
+    std::vector<std::wstring> citation_lastnames;
+    for (auto &t : split_whitespace(prefix)) {
+        std::wstring token = t;
+        if (!token.empty() && (token.back() == L',' || token.back() == L'.')) token.pop_back();
+        if (token == L"and" || token == L"et" || token == L"al" || token == L"al.") continue;
+        if (token.size() <= 2 && (token.size() == 1 || (token.size() == 2 && token[1] == L'.'))) continue;
+        if (!token.empty() && QChar(token[0]).isUpper()) {
+            citation_lastnames.push_back(token);
+        }
+    }
+    if (citation_lastnames.empty()) return results;
+
+    // Build author_year_index if empty: iterate over pages likely to contain bibliography
+    if (author_year_index.find(year) == author_year_index.end()) {
+        // Strategy 1: try a small window around a guessed references page
+        int ref_page = find_reference_page_with_reference_text(citation_text);
+        if (ref_page >= 0) {
+            int begin = std::max(0, ref_page - 3);
+            int endp = std::min(num_pages() - 1, ref_page + 12);
+            for (int page = begin; page <= endp; ++page) {
+                std::vector<PagelessDocumentRect> bib_rects;
+                std::vector<std::wstring> bib_texts = get_page_bib_candidates(page, &bib_rects);
+                for (size_t i = 0; i < bib_texts.size(); ++i) {
+                    auto parsed = parse_bib_authors_and_year(bib_texts[i]);
+                    if (!parsed) continue;
+                    auto [lastnames, bib_year] = parsed.value();
+                    if (bib_year.empty()) continue;
+                    AuthorYearIndexEntry entry;
+                    entry.author_last_names = lastnames;
+                    entry.data.page = page;
+                    entry.data.y_offset = bib_rects[i].y0;
+                    entry.data.text = bib_texts[i];
+                    author_year_index[bib_year].push_back(std::move(entry));
+                }
+            }
+        }
+        // Strategy 2: fallback scan last N pages where references usually live
+        if (author_year_index.find(year) == author_year_index.end()) {
+            int total = num_pages();
+            int N = std::min(30, total);
+            int begin = std::max(0, total - N);
+            for (int page = begin; page < total; ++page) {
+                std::vector<PagelessDocumentRect> bib_rects;
+                std::vector<std::wstring> bib_texts = get_page_bib_candidates(page, &bib_rects);
+                // Only consider pages that look like bibliography (several candidates)
+                if (bib_texts.size() < 3) continue;
+                for (size_t i = 0; i < bib_texts.size(); ++i) {
+                    auto parsed = parse_bib_authors_and_year(bib_texts[i]);
+                    if (!parsed) continue;
+                    auto [lastnames, bib_year] = parsed.value();
+                    if (bib_year.empty()) continue;
+                    AuthorYearIndexEntry entry;
+                    entry.author_last_names = lastnames;
+                    entry.data.page = page;
+                    entry.data.y_offset = bib_rects[i].y0;
+                    entry.data.text = bib_texts[i];
+                    author_year_index[bib_year].push_back(std::move(entry));
+                }
+            }
+        }
+    }
+
+    if (author_year_index.find(year) == author_year_index.end()) {
+        return results;
+    }
+
+    // Score candidates: overlap count between citation lastnames and bib lastnames
+    int best_score = -1;
+    std::optional<IndexedData> best;
+    for (const auto &entry : author_year_index[year]) {
+        int overlap = 0;
+        for (const auto &cname : citation_lastnames) {
+            for (const auto &bname : entry.author_last_names) {
+                if (QString::fromStdWString(cname).compare(QString::fromStdWString(bname), Qt::CaseInsensitive) == 0) {
+                    overlap++;
+                    break;
+                }
+            }
+        }
+        if (overlap > best_score) {
+            best_score = overlap;
+            best = entry.data;
+        }
+    }
+
+    if (best) {
+        results.push_back(best.value());
+    }
+    return results;
+}
+
+
 std::optional<std::wstring> Document::get_equation_text_at_position(
     const std::vector<fz_stext_char*>& flat_chars,
     PagelessDocumentPos position,
@@ -1567,6 +1735,30 @@ std::optional<std::wstring> Document::get_regex_match_at_position(const std::wre
     }
     return {};
 }
+
+// Try to match common author–year forms under cursor and return the matched substring
+std::optional<std::wstring> Document::get_author_year_citation_at_position(
+    const std::vector<fz_stext_char*>& flat_chars,
+    PagelessDocumentPos position,
+    std::pair<int, int>* out_range) {
+
+    // Build a few candidate regexes, ordered from stricter to looser
+    const std::vector<std::wregex> patterns = {
+        // Lastname and Lastname (1990)  OR  Lastname et al. (1990)
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+(( (and|&) [A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+)| et al\\.)?\\s*\\((19|20)\\d{2}[a-z]?\\)\\)?"),
+        // Lastname (1990)
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+\\s*\\((19|20)\\d{2}[a-z]?\\)\\)?"),
+        // Lastname and Lastname, 1990  OR  Lastname et al., 1990
+        std::wregex(L"\\(?[A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+(( (and|&) [A-Z][A-Za-zÀ-ÖØ-öø-ÿ\\-]+)| et al\\.)?,\\s*(19|20)\\d{2}[a-z]?\\)?")
+    };
+
+    for (const auto &regex : patterns) {
+        auto match = get_regex_match_at_position(regex, flat_chars, position, out_range);
+        if (match) return match;
+    }
+    return {};
+}
+
 
 std::vector<DocumentPos> Document::find_generic_locations(const std::wstring& type, const std::wstring& name) {
     std::vector<std::pair<int, DocumentPos>> pos_scores;
@@ -2493,6 +2685,13 @@ std::optional<std::wstring> Document::get_regex_match_at_position(const std::wre
     std::vector<fz_stext_char*> flat_chars;
     get_flat_chars_from_stext_page(stext_page, flat_chars);
     return get_regex_match_at_position(regex, flat_chars, position.pageless(), out_range);
+}
+
+std::optional<std::wstring> Document::get_author_year_citation_at_position(DocumentPos position, std::pair<int, int>* out_range) {
+    fz_stext_page* stext_page = get_stext_with_page_number(position.page);
+    std::vector<fz_stext_char*> flat_chars;
+    get_flat_chars_from_stext_page(stext_page, flat_chars);
+    return get_author_year_citation_at_position(flat_chars, position.pageless(), out_range);
 }
 
 std::vector<std::vector<PagelessDocumentRect>> Document::get_page_flat_word_chars(int page) {
