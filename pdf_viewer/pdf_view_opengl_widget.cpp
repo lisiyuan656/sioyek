@@ -1770,56 +1770,13 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
     }
 
     if (should_highlight_words && (!overview_page)) {
-        setup_text_painter(painter);
-
-        std::vector<std::string> tags = get_tags(word_rects.size());
-
-        for (size_t i = 0; i < word_rects.size(); i++) {
-            //auto [rect, page] = word_rects[i];
-            DocumentRect current_word_rect = word_rects[i];
-
-
-            NormalizedWindowRect window_rect = current_word_rect.to_window_normalized(document_view);
-
-            int view_width = static_cast<float>(document_view->get_view_width());
-            int view_height = static_cast<float>(document_view->get_view_height());
-
-            int window_x0 = static_cast<int>(window_rect.x0 * view_width / 2 + view_width / 2);
-            int window_y0 = static_cast<int>(-window_rect.y0 * view_height / 2 + view_height / 2);
-
-            if (i > 0) {
-                if (std::abs(word_rects[i - 1].rect.x0 - current_word_rect.rect.x0) < 5) {
-                    window_y0 = static_cast<int>(-window_rect.y1 * view_height / 2 + view_height / 2);
-                }
-            }
-
-            int window_y1 = static_cast<int>(-window_rect.y1 * view_height / 2 + view_height / 2);
-
-            bool highlighted = is_tag_highlighted(tags[i]);
-            QString remaining_tag = QString::fromStdString(tags[i]);
-            if (tag_prefix.size() > 0) {
-                if (remaining_tag.startsWith(QString::fromStdString(tag_prefix))) {
-                    remaining_tag = remaining_tag.mid(tag_prefix.size());
-                }
-                else {
-                    remaining_tag = "";
-                }
-            }
-            
-            if (remaining_tag.size() > 0) {
-                if (highlighted) {
-                    auto original_pen = painter->pen();
-                    auto original_background = painter->background();
-                    painter->setPen(qcc4(KEYBOARD_SELECTED_TAG_TEXT_COLOR));
-                    painter->setBackground(qcc4(KEYBOARD_SELECTED_TAG_BACKGROUND_COLRO));
-                    painter->drawText(window_x0, (window_y0 + window_y1) / 2, remaining_tag);
-                    painter->setPen(original_pen);
-                    painter->setBackground(original_background);
-                }
-                else {
-                    painter->drawText(window_x0, (window_y0 + window_y1) / 2, remaining_tag);
-                }
-            }
+        // Render filled highlight rectangles for provided word_rects (no labels)
+        glUseProgram(shared_gl_objects.highlight_program);
+        std::array<float, 3> text_highlight_color = cc3(DEFAULT_TEXT_HIGHLIGHT_COLOR);
+        glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &text_highlight_color[0]);
+        glUniform1f(shared_gl_objects.highlight_opacity_uniform_location, 0.25f);
+        for (const auto& dr : word_rects) {
+            render_highlight_document(shared_gl_objects.highlight_program, dr, HRF_FILL);
         }
     }
 

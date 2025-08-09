@@ -239,6 +239,7 @@ public:
     void toggle_highlight_words();
     void set_highlight_words(std::vector<DocumentRect>& rects);
     void set_should_highlight_words(bool should_highlight);
+    void set_highlight_words_fill(bool fill);
     std::vector<DocumentRect> get_highlight_word_rects();
 
     bool on_vertical_scroll();
