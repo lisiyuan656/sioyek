@@ -1769,16 +1769,7 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
         }
     }
 
-    if (should_highlight_words && (!overview_page)) {
-        // Render filled highlight rectangles for provided word_rects (no labels)
-        glUseProgram(shared_gl_objects.highlight_program);
-        std::array<float, 3> text_highlight_color = cc3(DEFAULT_TEXT_HIGHLIGHT_COLOR);
-        glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &text_highlight_color[0]);
-        glUniform1f(shared_gl_objects.highlight_opacity_uniform_location, 0.25f);
-        for (const auto& dr : word_rects) {
-            render_highlight_document(shared_gl_objects.highlight_program, dr, HRF_FILL);
-        }
-    }
+    // (Removed label rendering here; GL highlight rendering happens below after beginNativePainting)
 
     if (should_highlight_links && should_show_numbers && (!overview_page)) {
 
@@ -1858,6 +1849,16 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
 
     render_text_highlights();
     render_highlight_annotations();
+
+    // Render citation/word highlights as filled rectangles (after GL setup)
+    if (should_highlight_words && (!overview_page)) {
+        std::array<float, 3> text_highlight_color = cc3(DEFAULT_TEXT_HIGHLIGHT_COLOR);
+        glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &text_highlight_color[0]);
+        glUniform1f(shared_gl_objects.highlight_opacity_uniform_location, 0.25f);
+        for (const auto& dr : word_rects) {
+            render_highlight_document(shared_gl_objects.highlight_program, dr, HRF_FILL);
+        }
+    }
 
     if (overview_page) {
         glDisable(GL_CULL_FACE);
