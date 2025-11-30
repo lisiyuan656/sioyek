@@ -20,6 +20,8 @@ float UI_TEXT_COLOR[3] = { 1.0f, 1.0f, 1.0f };
 float UI_BACKGROUND_COLOR[3] = { 0.0f, 0.0f, 0.0f };
 float UI_SELECTED_TEXT_COLOR[3] = { 0.0f, 0.0f, 0.0f };
 float UI_SELECTED_BACKGROUND_COLOR[3] = { 1.0f, 1.0f, 1.0f };
+float SCROLLBAR_BG_COLOR[3] = { 0.9f, 0.9f, 0.9f };
+float SCROLLBAR_HANDLE_COLOR[3] = { 0.5f, 0.5f, 0.5f };
 float UNSELECTED_SEARCH_HIGHLIGHT_COLOR[3] = { 0.0f, 0.5f, 0.5f };
 float GAMMA = 1.0f;
 bool DEBUG_DISPLAY_FREEHAND_POINTS = false;
@@ -906,6 +908,8 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_color3(L"ui_background_color", UI_BACKGROUND_COLOR);
     add_color3(L"ui_selected_text_color", UI_SELECTED_TEXT_COLOR);
     add_color3(L"ui_background_color", STATUS_BAR_COLOR);
+    add_color3(L"scrollbar_bg_color", SCROLLBAR_BG_COLOR);
+    add_color3(L"scrollbar_handle_color", SCROLLBAR_HANDLE_COLOR);
     add_color4(L"vertical_line_color",DEFAULT_VERTICAL_LINE_COLOR);
     add_color4(L"visual_mark_color",DEFAULT_VERTICAL_LINE_COLOR);
     add_color4(L"keyboard_select_background_color", KEYBOARD_SELECT_BACKGROUND_COLOR);

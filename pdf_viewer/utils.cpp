@@ -48,6 +48,9 @@ extern std::ofstream LOG_FILE;
 extern int STATUS_BAR_FONT_SIZE;
 extern float STATUS_BAR_COLOR[3];
 extern float STATUS_BAR_TEXT_COLOR[3];
+extern float SCROLLBAR_BG_COLOR[3];
+extern float SCROLLBAR_HANDLE_COLOR[3];
+extern float PAGE_SEPARATOR_COLOR[3];
 extern float UI_SELECTED_TEXT_COLOR[3];
 extern float UI_SELECTED_BACKGROUND_COLOR[3];
 extern bool NUMERIC_TAGS;
@@ -2663,6 +2666,37 @@ QString get_ui_stylesheet(bool nofont, int font_size) {
 QString get_status_stylesheet(bool nofont, int font_size) {
     return get_color_stylesheet(STATUS_BAR_COLOR, STATUS_BAR_TEXT_COLOR, nofont, font_size);
 }
+
+QString get_scrollbar_stylesheet() {
+    QString bg_color = get_color_qml_string(SCROLLBAR_BG_COLOR[0], SCROLLBAR_BG_COLOR[1], SCROLLBAR_BG_COLOR[2]);
+    QString handle_color = get_color_qml_string(SCROLLBAR_HANDLE_COLOR[0], SCROLLBAR_HANDLE_COLOR[1], SCROLLBAR_HANDLE_COLOR[2]);
+    return QString(
+        "QScrollBar:vertical {"
+        "    background: %1;"
+        "    width: 14px;"
+        "    margin: 0px 0px 0px 0px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "    background: %2;"
+        "    min-height: 20px;"
+        "    border-radius: 7px;"
+        "    margin: 2px;"
+        "}"
+        "QScrollBar::add-line:vertical {"
+        "    background: none;"
+        "    height: 0px;"
+        "    subcontrol-position: bottom;"
+        "    subcontrol-origin: margin;"
+        "}"
+        "QScrollBar::sub-line:vertical {"
+        "    background: none;"
+        "    height: 0px;"
+        "    subcontrol-position: top;"
+        "    subcontrol-origin: margin;"
+        "}"
+    ).arg(bg_color, handle_color);
+}
+
 
 QString get_list_item_stylesheet() {
     return QString("background-color: red; padding-bottom: 20px; padding-top: 20px;");

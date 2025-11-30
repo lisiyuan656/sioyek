@@ -1275,6 +1275,7 @@ MainWidget::MainWidget(fz_context* mupdf_context,
 
     scroll_bar->setMinimum(0);
     scroll_bar->setMaximum(MAX_SCROLLBAR);
+    scroll_bar->setStyleSheet(get_scrollbar_stylesheet());
 
     scroll_bar->connect(scroll_bar, &QScrollBar::actionTriggered, [this](int action) {
         int value = scroll_bar->value();
