@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <deque>
 #include <regex>
+#include <set>
 
 //#include <Windows.h>
 #include <qstandarditemmodel.h>
@@ -147,6 +148,7 @@ private:
         IndexedData data;
     };
     std::unordered_map<std::wstring, std::vector<AuthorYearIndexEntry>> author_year_index;
+    std::set<int> scanned_for_author_year_pages;
 
     std::mutex document_indexing_mutex;
     std::optional<std::thread> document_indexing_thread = {};
