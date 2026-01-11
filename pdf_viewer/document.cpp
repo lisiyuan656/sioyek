@@ -1220,11 +1220,21 @@ DocumentManager::DocumentManager(fz_context* mupdf_context, DatabaseManager* db,
 
 Document* DocumentManager::get_document(const std::wstring& path) {
     if (cached_documents.find(path) != cached_documents.end()) {
+        touch_document(path);
         return cached_documents.at(path);
     }
     Document* new_doc = new Document(mupdf_context, path, db_manager, checksummer);
     cached_documents[path] = new_doc;
+    touch_document(path);
     return new_doc;
+}
+
+void DocumentManager::touch_document(const std::wstring& path) {
+    auto it = std::find(recent_documents.begin(), recent_documents.end(), path);
+    if (it != recent_documents.end()) {
+        recent_documents.erase(it);
+    }
+    recent_documents.push_back(path);
 }
 
 const std::unordered_map<std::wstring, Document*>& DocumentManager::get_cached_documents() {
@@ -2886,6 +2896,11 @@ void DocumentManager::free_document(Document* document) {
     }
     if (found) {
         cached_documents.erase(path_to_erase);
+        remove_tab(path_to_erase);
+        auto recent_it = std::find(recent_documents.begin(), recent_documents.end(), path_to_erase);
+        if (recent_it != recent_documents.end()) {
+            recent_documents.erase(recent_it);
+        }
     }
 
     delete document;
@@ -3198,6 +3213,7 @@ DocumentManager::~DocumentManager() {
         delete doc;
     }
     cached_documents.clear();
+    recent_documents.clear();
 }
 
 bool Document::is_super_fast_index_ready() {
@@ -3274,6 +3290,8 @@ void Document::clear_document_caches() {
     cached_line_texts.clear();
     cached_page_line_rects.clear();
     cached_page_index.clear();
+    cached_flat_words.clear();
+    cached_flat_word_chars.clear();
 
 
     for (auto [_, cached_small_pixmap] : cached_small_pixmaps) {
@@ -3966,6 +3984,40 @@ std::vector<std::wstring> DocumentManager::get_loaded_document_paths() {
         res.push_back(path);
     }
     return res;
+}
+
+void DocumentManager::trim_cached_documents(int max_documents, const std::set<std::wstring>& protected_paths) {
+    if (max_documents <= 0) {
+        return;
+    }
+
+    while (static_cast<int>(cached_documents.size()) > max_documents) {
+        bool removed = false;
+        for (auto it = recent_documents.begin(); it != recent_documents.end(); ) {
+            const std::wstring& path = *it;
+            if (protected_paths.find(path) != protected_paths.end()) {
+                ++it;
+                continue;
+            }
+
+            auto doc_it = cached_documents.find(path);
+            if (doc_it == cached_documents.end()) {
+                it = recent_documents.erase(it);
+                continue;
+            }
+
+            Document* doc = doc_it->second;
+            cached_documents.erase(doc_it);
+            remove_tab(path);
+            it = recent_documents.erase(it);
+            delete doc;
+            removed = true;
+            break;
+        }
+        if (!removed) {
+            break;
+        }
+    }
 }
 
 std::optional<Document*> DocumentManager::get_cached_document(const std::wstring& path) {

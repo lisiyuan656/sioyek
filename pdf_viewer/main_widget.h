@@ -766,6 +766,7 @@ public:
     void persist_config();
 
     void synchronize_pending_link();
+    void trim_cached_documents_if_needed();
     void refresh_all_windows();
     std::optional<PdfLink> get_selected_link(const std::wstring& text);
 

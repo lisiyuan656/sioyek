@@ -470,6 +470,9 @@ private:
     std::unordered_map<std::wstring, Document*> cached_documents;
     std::unordered_map<std::string, std::wstring> hash_to_path;
     std::vector<std::wstring> tabs;
+    std::deque<std::wstring> recent_documents;
+
+    void touch_document(const std::wstring& path);
 public:
 
     DocumentManager(fz_context* mupdf_context, DatabaseManager* db_manager, CachedChecksummer* checksummer);
@@ -487,6 +490,7 @@ public:
     void free_document(Document* document);
     const std::unordered_map<std::wstring, Document*>& get_cached_documents();
     std::vector<std::wstring> get_loaded_document_paths();
+    void trim_cached_documents(int max_documents, const std::set<std::wstring>& protected_paths);
     void delete_global_mark(char symbol);
     ~DocumentManager();
 };

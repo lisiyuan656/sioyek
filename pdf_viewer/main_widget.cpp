@@ -203,6 +203,7 @@ extern std::wstring VOLUME_UP_COMMAND;
 extern int DOCUMENTATION_FONT_SIZE;
 extern ScratchPad global_scratchpad;
 extern int NUM_CACHED_PAGES;
+extern int MAX_CACHED_DOCUMENTS;
 extern bool IGNORE_SCROLL_EVENTS;
 extern bool DONT_FOCUS_IF_SYNCTEX_RECT_IS_VISIBLE;
 extern bool USE_SYSTEM_THEME;
@@ -2045,6 +2046,7 @@ void MainWidget::open_document(const std::wstring& path, std::optional<float> of
     if (doc()) {
         document_manager->add_tab(doc()->get_path());
         //doc()->set_only_for_portal(false);
+        trim_cached_documents_if_needed();
     }
 
     bool has_document = main_document_view_has_document();
@@ -4375,6 +4377,7 @@ void MainWidget::open_document(const std::wstring& doc_path,
     if (doc()) {
         document_manager->add_tab(doc()->get_path());
         //doc()->set_only_for_portal(false);
+        trim_cached_documents_if_needed();
     }
 
     std::optional<std::wstring> filename = Path(doc_path).filename();
@@ -5126,6 +5129,27 @@ void MainWidget::remove_self_from_windows() {
             break;
         }
     }
+}
+
+void MainWidget::trim_cached_documents_if_needed() {
+    if (MAX_CACHED_DOCUMENTS <= 0 || document_manager == nullptr) {
+        return;
+    }
+
+    std::set<std::wstring> protected_paths;
+    for (auto window : windows) {
+        if (!window) {
+            continue;
+        }
+        if (window->doc()) {
+            protected_paths.insert(window->doc()->get_path());
+        }
+        if (window->helper_document_view_ && window->helper_document_view_->get_document()) {
+            protected_paths.insert(window->helper_document_view_->get_document()->get_path());
+        }
+    }
+
+    document_manager->trim_cached_documents(MAX_CACHED_DOCUMENTS, protected_paths);
 }
 
 
