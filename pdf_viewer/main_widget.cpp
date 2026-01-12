@@ -4431,6 +4431,9 @@ void MainWidget::highlight_ruler_portals() {
 
 }
 void MainWidget::highlight_words() {
+    if (!doc()) {
+        return;  // No document open, nothing to highlight
+    }
 
     int page = get_current_page_number();
     fz_stext_page* stext_page = main_document_view->get_document()->get_stext_with_page_number(page);
